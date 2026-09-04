@@ -1,0 +1,6 @@
+{
+  "name": "Cram AI",
+  "description": "AI Study Helper for analyzing study materials, solving complex questions, and facilitating context-aware study sessions.",
+  "requestFramePermissions": ["camera"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
