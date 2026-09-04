@@ -1,1 +1,16 @@
 @import "tailwindcss";
+
+/* KaTeX mathematical formatting & responsive overflow */
+.katex-display {
+  overflow-x: auto;
+  overflow-y: hidden;
+  max-width: 100%;
+  padding-top: 0.25rem;
+  padding-bottom: 0.25rem;
+  margin: 0.75rem 0 !important;
+}
+
+.katex {
+  font-size: 1.05em;
+  text-rendering: auto;
+}

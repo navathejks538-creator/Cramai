@@ -6,6 +6,8 @@ export type StudyMode =
   | 'socratic'
   | 'exam_traps';
 
+export type AnswerLength = 'short' | 'balanced' | 'detailed';
+
 export interface StudyAttachment {
   id: string;
   name: string;
@@ -13,6 +15,8 @@ export interface StudyAttachment {
   mimeType: string;
   data: string; // Base64 or data URL
   previewUrl?: string;
+  sourceType?: 'image' | 'file' | 'pasted';
+  rawText?: string;
 }
 
 export interface ChatMessage {
@@ -21,6 +25,7 @@ export interface ChatMessage {
   content: string;
   timestamp: number;
   mode?: StudyMode;
+  length?: AnswerLength;
   attachments?: StudyAttachment[];
   suggestedFollowUps?: string[];
   keyTakeaways?: string[];
@@ -32,12 +37,15 @@ export interface StudySession {
   createdAt: number;
   updatedAt: number;
   mode: StudyMode;
+  length?: AnswerLength;
   messages: ChatMessage[];
+  activeAttachment?: StudyAttachment | null;
 }
 
 export interface AnalyzeRequest {
   prompt: string;
   mode: StudyMode;
+  length?: AnswerLength;
   attachments?: {
     name: string;
     mimeType: string;

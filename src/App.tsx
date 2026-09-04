@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import {
   StudyMode,
+  AnswerLength,
   StudyAttachment,
   ChatMessage,
   StudySession,
@@ -13,6 +14,7 @@ import { StudyInputBar } from './components/StudyInputBar';
 import { ModeSelector, getModeConfig } from './components/ModeSelector';
 import { CameraCaptureModal } from './components/CameraCaptureModal';
 import { ImagePreviewModal } from './components/ImagePreviewModal';
+import { PasteTextModal } from './components/PasteTextModal';
 import { SessionsSidebar } from './components/SessionsSidebar';
 import { Loader2, AlertCircle } from 'lucide-react';
 
@@ -60,13 +62,17 @@ export default function App() {
   const [currentMode, setCurrentMode] = useState<StudyMode>(() => {
     return activeSession ? normalizeMode(activeSession.mode) : 'simple';
   });
+  // Answer length state - defaults strictly to 'balanced'
+  const [answerLength, setAnswerLength] = useState<AnswerLength>('balanced');
   const [inputPrompt, setInputPrompt] = useState('');
   const [attachments, setAttachments] = useState<StudyAttachment[]>([]);
+  const [activeContextAttachment, setActiveContextAttachment] = useState<StudyAttachment | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
 
   // Modals state
   const [isCameraOpen, setIsCameraOpen] = useState(false);
+  const [isPasteModalOpen, setIsPasteModalOpen] = useState(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [previewImage, setPreviewImage] = useState<{ url: string; name: string } | null>(null);
 
@@ -106,13 +112,15 @@ export default function App() {
     }
   };
 
-  // Session Management Handlers
+  // Session Management Handlers (New Chat resets all context, messages, and modes to simple)
   const handleCreateNewSession = () => {
     setActiveSessionId(null);
     setInputPrompt('');
     setAttachments([]);
+    setActiveContextAttachment(null);
     setApiError(null);
     setCurrentMode('simple');
+    setAnswerLength('balanced');
   };
 
   const handleSelectSession = (id: string) => {
@@ -171,14 +179,26 @@ export default function App() {
   // Attachment handlers
   const handleAddAttachments = (newAtts: StudyAttachment[]) => {
     setAttachments((prev) => [...prev, ...newAtts]);
+    if (newAtts.length > 0 && !activeContextAttachment) {
+      setActiveContextAttachment(newAtts[0]);
+    }
   };
 
   const handleRemoveAttachment = (id: string) => {
     setAttachments((prev) => prev.filter((a) => a.id !== id));
+    if (activeContextAttachment?.id === id) {
+      setActiveContextAttachment(null);
+    }
   };
 
   const handleCameraCapture = (attachment: StudyAttachment) => {
     setAttachments((prev) => [...prev, attachment]);
+    setActiveContextAttachment(attachment);
+  };
+
+  const handleAddPastedText = (attachment: StudyAttachment) => {
+    setAttachments((prev) => [...prev, attachment]);
+    setActiveContextAttachment(attachment);
   };
 
   const handlePreviewImage = (url: string, name: string) => {
@@ -195,7 +215,15 @@ export default function App() {
     const queuedAttachments = overrideAttachments !== undefined ? overrideAttachments : [...attachments];
     const modeToUse = overrideMode || currentMode;
 
-    if (!textToSend.trim() && queuedAttachments.length === 0) return;
+    const effectiveAttachments = queuedAttachments.length > 0
+      ? queuedAttachments
+      : (activeContextAttachment ? [activeContextAttachment] : []);
+
+    if (!textToSend.trim() && effectiveAttachments.length === 0) return;
+
+    if (queuedAttachments.length > 0) {
+      setActiveContextAttachment(queuedAttachments[0]);
+    }
 
     setApiError(null);
     setIsAnalyzing(true);
@@ -217,7 +245,7 @@ export default function App() {
       content: promptText || 'Please analyze the attached study material.',
       timestamp: Date.now(),
       mode: modeToUse,
-      attachments: queuedAttachments.length > 0 ? queuedAttachments : undefined
+      attachments: effectiveAttachments.length > 0 ? effectiveAttachments : undefined
     };
 
     let targetSessionId = activeSessionId;
@@ -229,7 +257,7 @@ export default function App() {
       targetSessionId = newSessionId;
       const initialTitle = promptText
         ? promptText.slice(0, 48) + (promptText.length > 48 ? '...' : '')
-        : queuedAttachments[0]?.name || 'Study Session';
+        : effectiveAttachments[0]?.name || 'Study Session';
 
       const newSession: StudySession = {
         id: newSessionId,
@@ -262,14 +290,15 @@ export default function App() {
         text: m.content
       }));
 
-      // Call Express server API
+      // Call Express server API with mode and answer length
       const res = await fetch('/api/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           prompt: promptText,
           mode: modeToUse,
-          attachments: queuedAttachments.map((a) => ({
+          length: answerLength,
+          attachments: effectiveAttachments.map((a) => ({
             name: a.name,
             mimeType: a.mimeType,
             data: a.data
@@ -363,12 +392,15 @@ export default function App() {
           <StudyConsole
             currentMode={currentMode}
             onSelectMode={handleSelectMode}
+            answerLength={answerLength}
+            onSelectAnswerLength={setAnswerLength}
             inputPrompt={inputPrompt}
             setInputPrompt={setInputPrompt}
             attachments={attachments}
             onAddAttachments={handleAddAttachments}
             onRemoveAttachment={handleRemoveAttachment}
             onOpenCamera={() => setIsCameraOpen(true)}
+            onOpenPasteModal={() => setIsPasteModalOpen(true)}
             onPreviewImage={handlePreviewImage}
             onSubmit={() => handleSubmit()}
             isAnalyzing={isAnalyzing}
@@ -381,6 +413,8 @@ export default function App() {
               <ModeSelector
                 currentMode={currentMode}
                 onSelectMode={handleSelectMode}
+                answerLength={answerLength}
+                onSelectAnswerLength={setAnswerLength}
                 disabled={isAnalyzing}
               />
             </div>
@@ -433,8 +467,11 @@ export default function App() {
           onAddAttachments={handleAddAttachments}
           onRemoveAttachment={handleRemoveAttachment}
           onOpenCamera={() => setIsCameraOpen(true)}
+          onOpenPasteModal={() => setIsPasteModalOpen(true)}
           onPreviewImage={handlePreviewImage}
           currentMode={currentMode}
+          activeContextAttachment={activeContextAttachment}
+          onClearActiveContext={() => setActiveContextAttachment(null)}
         />
       )}
 
@@ -443,6 +480,12 @@ export default function App() {
         isOpen={isCameraOpen}
         onClose={() => setIsCameraOpen(false)}
         onCapture={handleCameraCapture}
+      />
+
+      <PasteTextModal
+        isOpen={isPasteModalOpen}
+        onClose={() => setIsPasteModalOpen(false)}
+        onAddPastedText={handleAddPastedText}
       />
 
       <ImagePreviewModal

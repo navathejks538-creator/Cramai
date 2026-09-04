@@ -81,16 +81,16 @@ export const Header: React.FC<HeaderProps> = ({
             )}
           </button>
 
-          {/* New Topic Button */}
+          {/* New Chat Button */}
           <button
             type="button"
-            id="new-topic-btn"
+            id="new-chat-btn"
             onClick={onNewSession}
-            className="flex items-center gap-1.5 text-xs font-medium text-white bg-indigo-600 hover:bg-indigo-700 px-3 py-1.5 rounded-lg shadow-xs transition-colors cursor-pointer"
-            title="Start New Topic"
+            className="flex items-center gap-1.5 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 px-3 py-1.5 rounded-lg shadow-xs transition-colors cursor-pointer"
+            title="Start New Chat"
           >
             <Plus className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">New Topic</span>
+            <span>New Chat</span>
           </button>
 
           {/* Clear Current Button */}

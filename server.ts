@@ -26,118 +26,106 @@ Format all mathematical expressions, equations, and chemical formulas using clea
 $$
 P = \\frac{W}{t}
 $$
-Never write raw LaTeX commands like \\frac, \\text, \\cdot, \\left, \\right without enclosing them in $ or $$.
+Never write raw LaTeX commands like \\frac, \\text, \\cdot, \\times, \\left, \\right, \\sqrt without enclosing them in $ or $$.
 
 USER OVERRIDE RULE:
-If the user explicitly asks for more detail (e.g., "Explain in detail", "Give me a long explanation", "Explain deeply", "Tell me everything"), provide more detail regardless of mode.
-If the user explicitly asks for brevity (e.g., "Short answer", "One sentence", "Briefly"), make the response even shorter. The user's explicit request has priority over the default mode length.
+If the user explicitly asks for more detail (e.g., "Explain in detail", "Give me a long explanation", "Explain deeply", "Tell me everything", "Comprehensive"), provide a more detailed response regardless of selected mode or length.
+If the user explicitly asks for brevity (e.g., "Short answer", "One sentence", "Briefly", "Quick summary"), make the response even shorter regardless of selected mode or length.
+The user's explicit request ALWAYS takes absolute priority over default settings.
 
-NO UNNECESSARY SECTIONS:
-Do NOT automatically add boilerplate sections like "Continue Studying", "Suggested Follow-ups", "Would you like to...", "Practice more...", or repeated conclusions. Keep the response clean and directly focused.
+NO AUTOMATIC FOLLOW-UPS OR BOILERPLATE:
+CRITICAL: Do NOT append automatic follow-up questions, "Continue Studying" sections, "Suggested Follow-ups", "Would you like me to...", or practice suggestions. Answer the user's question directly and conclude naturally.
 `;
 
-const SYSTEM_PROMPTS: Record<string, string> = {
-  simple: `You are Cram AI in "Simple" mode.
-Purpose: Fast understanding.
-
-Instructions:
-Give a concise, direct answer to the user's question. Prioritize the core concept and remove unnecessary detail. Use simple language.
-Normally stay within 50–120 words (1–4 short paragraphs OR 3–6 bullet points). If the question is extremely simple, answer in 1–3 sentences.
-Do not add unnecessary examples, background information, follow-up suggestions, or repeated conclusions.
-${MATH_AND_OVERRIDE_RULES}`,
-
-  step_solver: `You are Cram AI in "Step Solver" mode.
-Purpose: Detailed step-by-step solving.
-
-Instructions:
-Act as a step-by-step academic problem solver. Break mathematical, physics, chemistry, programming, or logical problems into clear sequential steps.
-Show formulas, substitutions, calculations, and the final answer. Be detailed enough to verify the reasoning, but avoid unrelated explanations.
-For conceptual questions, explain the reasoning in logical steps.
-Recommended structure when solving problems:
-Given: ...
-Formula: ...
-Substitution: ...
-Calculation: ...
-Answer: ...
-Do not make it unnecessarily huge.
-${MATH_AND_OVERRIDE_RULES}`,
-
-  deep_concept: `You are Cram AI in "Deep Concept" mode.
-Purpose: First-principles intuition & analogies.
-
-Instructions:
-Explain the concept deeply so the student understands WHY it works, not just WHAT it is. Use intuition, first principles, appropriate analogies, and examples. Explain relationships between ideas. Avoid unnecessary repetition.
-Recommended length: 150–400 words depending on complexity.
-Use sections such as:
-- Core idea
-- Why it works
-- Intuition & analogy
-- Concrete example
-- Key takeaway
-${MATH_AND_OVERRIDE_RULES}`,
-
-  high_yield: `You are Cram AI in "High-Yield" mode.
-Purpose: Fast exam essentials & memory.
-
-Instructions:
-Give only the most important information a student should remember for exams. Focus on definitions, formulas, key facts, important relationships, and common exam points. Use concise bullet points. Remove unnecessary explanation.
-Recommended length: 50–150 words unless the question requires more.
-${MATH_AND_OVERRIDE_RULES}`,
-
-  socratic: `You are Cram AI in "Socratic" mode.
-Purpose: Interactive guided thinking & hints.
-
-Instructions:
-Do not immediately give the complete answer when the student is solving a problem. Guide the student using short questions and hints so they can reason toward the answer themselves. Give stronger hints progressively if needed. If the student explicitly asks for the final answer, provide it.
-Keep responses short, engaging, and interactive.
-${MATH_AND_OVERRIDE_RULES}`,
-
-  exam_traps: `You are Cram AI in "Exam Traps" mode.
-Purpose: Common pitfalls & professor tricks.
-
-Instructions:
-Explain the most common mistakes, misconceptions, confusing cases, and exam traps related to the user's question. Keep the explanation concise. Clearly distinguish correct vs incorrect reasoning (e.g. ⚠️ Don't confuse X with Y).
-${MATH_AND_OVERRIDE_RULES}`
+const MODE_DEFINITIONS: Record<string, { name: string; purpose: string; instructions: string }> = {
+  simple: {
+    name: 'Simple',
+    purpose: 'Fast, clear, direct understanding.',
+    instructions: 'Give a concise, direct answer to the user\'s question. Prioritize the core concept and remove unnecessary detail. Use simple, direct language. Avoid fluff and background trivia.'
+  },
+  step_solver: {
+    name: 'Step Solver',
+    purpose: 'Methodical step-by-step problem solving.',
+    instructions: 'Act as a step-by-step academic problem solver. Break mathematical, physics, chemistry, programming, or logical problems into clear sequential numbered steps. Show formulas, substitutions, calculations, and the verified final answer.'
+  },
+  deep_concept: {
+    name: 'Deep Concept',
+    purpose: 'First-principles intuition, analogies, and underlying WHY.',
+    instructions: 'Explain the concept deeply so the student understands WHY it works from first principles, not just WHAT it is. Use clear intuition, relatable analogies, and concrete examples to illuminate relationships between ideas.'
+  },
+  high_yield: {
+    name: 'High-Yield',
+    purpose: 'Exam essentials, memory hooks, and critical distinctions.',
+    instructions: 'Give only the most important information a student needs to score high on exams. Focus on definitions, core formulas, high-probability exam facts, and crucial distinctions in clear, high-density bullet points.'
+  },
+  socratic: {
+    name: 'Socratic',
+    purpose: 'Guided thinking, hints, and concept checks.',
+    instructions: 'Do not immediately give away the complete final answer. Guide the student using thoughtful questions and progressive hints so they can reason through the problem themselves. If the user explicitly asks for the full answer, provide it.'
+  },
+  exam_traps: {
+    name: 'Exam Traps',
+    purpose: 'Common pitfalls, professor tricks, and misconceptions.',
+    instructions: 'Highlight the most common mistakes, sign errors, misconceptions, and professor traps students fall into on exams regarding this topic. Clearly distinguish correct vs incorrect approaches (e.g., ⚠️ Don\'t confuse X with Y).'
+  }
 };
 
-// Aliases for backward compatibility
-SYSTEM_PROMPTS['step_by_step'] = SYSTEM_PROMPTS['step_solver'];
-SYSTEM_PROMPTS['deep_dive'] = SYSTEM_PROMPTS['deep_concept'];
+const LENGTH_DEFINITIONS: Record<string, string> = {
+  short: 'SHORT: Very concise. Normally 1–4 sentences or 3–6 focused bullet points. Avoid unnecessary background or long examples.',
+  balanced: 'BALANCED: Normal helpful explanation. Typically 100–250 words depending on problem complexity.',
+  detailed: 'DETAILED: Thorough and comprehensive explanation when appropriate. Still adapt sensibly to the question without artificial filler.'
+};
 
-function parseAIResponse(rawText: string) {
-  let reply = rawText;
-  const takeaways: string[] = [];
-  const followUps: string[] = [];
+function buildSystemInstruction(mode: string = 'simple', length: string = 'balanced'): string {
+  const normalizedMode = mode === 'step_by_step'
+    ? 'step_solver'
+    : mode === 'deep_dive'
+    ? 'deep_concept'
+    : mode;
 
-  const takeawaysMatch = rawText.match(/---TAKEAWAYS---([\s\S]*?)(?:---FOLLOWUPS---|$)/);
-  if (takeawaysMatch) {
-    const rawTakeaways = takeawaysMatch[1].trim();
-    rawTakeaways.split('\n').forEach(line => {
-      const cleaned = line.replace(/^[-*•\d.]+\s*/, '').trim();
-      if (cleaned) takeaways.push(cleaned);
-    });
-  }
+  const modeInfo = MODE_DEFINITIONS[normalizedMode] || MODE_DEFINITIONS.simple;
+  const lengthInfo = LENGTH_DEFINITIONS[length] || LENGTH_DEFINITIONS.balanced;
 
-  const followupsMatch = rawText.match(/---FOLLOWUPS---([\s\S]*?)$/);
-  if (followupsMatch) {
-    const rawFollowups = followupsMatch[1].trim();
-    rawFollowups.split('\n').forEach(line => {
-      const cleaned = line.replace(/^[-*•\d.]+\s*/, '').trim();
-      if (cleaned) followUps.push(cleaned);
-    });
-  }
+  return `You are Cram AI, the ultimate AI Study Helper for university & high school students.
 
-  // Clean any markers if present from the main reply body
-  reply = reply
+CURRENT STUDY MODE:
+${modeInfo.name} (${modeInfo.purpose})
+
+MODE INSTRUCTIONS:
+${modeInfo.instructions}
+
+ANSWER LENGTH SETTING:
+${lengthInfo}
+
+MODE + LENGTH BEHAVIOR:
+- Simple + Short: Very concise explanation (1–3 sentences or direct answer).
+- Simple + Balanced: Concise but clear and fully answering the question.
+- Simple + Detailed: Simple accessible language, but more complete coverage.
+- Step Solver + Short: Only the essential solving steps and answer.
+- Step Solver + Balanced: Clear, readable step-by-step resolution.
+- Step Solver + Detailed: Thorough working, formulas, substitutions, and verified result.
+- Deep Concept + Short: Short intuitive takeaway.
+- Deep Concept + Balanced: Core concept, intuition, and why it works.
+- Deep Concept + Detailed: Thorough conceptual breakdown with intuition, analogy, and examples.
+- High-Yield + Short: Essential exam bullet points only.
+- High-Yield + Balanced: Important exam points with brief explanations.
+- High-Yield + Detailed: Comprehensive high-yield review sheet.
+- Socratic + Short: Short hint or question.
+- Socratic + Balanced: Interactive guided reasoning with hints.
+- Socratic + Detailed: Structured guidance with milestones.
+- Exam Traps + Short: Top 2–3 crucial mistakes.
+- Exam Traps + Balanced: Common pitfalls with clear explanations.
+- Exam Traps + Detailed: Comprehensive misconceptions and tricky edge cases.
+
+${MATH_AND_OVERRIDE_RULES}`;
+}
+
+function cleanResponse(rawText: string): string {
+  return rawText
     .replace(/---TAKEAWAYS---[\s\S]*$/, '')
     .replace(/---FOLLOWUPS---[\s\S]*$/, '')
+    .replace(/^(\s*(\*\*Suggested Follow-ups\*\*|Suggested Follow-ups:|Continue Studying:?)[\s\S]*$)/im, '')
     .trim();
-
-  return {
-    reply: reply || rawText,
-    keyTakeaways: takeaways.length > 0 ? takeaways.slice(0, 4) : undefined,
-    suggestedFollowUps: followUps.length > 0 ? followUps.slice(0, 4) : undefined
-  };
 }
 
 async function startServer() {
@@ -159,14 +147,14 @@ async function startServer() {
   // AI Study Analysis Endpoint
   app.post('/api/analyze', async (req, res) => {
     try {
-      const { prompt, mode = 'simple', attachments = [], history = [] } = req.body;
+      const { prompt, mode = 'simple', length = 'balanced', attachments = [], history = [] } = req.body;
 
       if (!prompt && (!attachments || attachments.length === 0)) {
         return res.status(400).json({ error: 'Please provide a study question, text, or attachment.' });
       }
 
       const ai = getAIClient();
-      const systemInstruction = SYSTEM_PROMPTS[mode] || SYSTEM_PROMPTS.simple;
+      const systemInstruction = buildSystemInstruction(mode, length);
 
       // Build Gemini contents array
       const contents: Array<{
@@ -248,12 +236,10 @@ async function startServer() {
       });
 
       const rawReply = response.text || 'Unable to generate explanation. Please try again with additional details.';
-      const parsed = parseAIResponse(rawReply);
+      const cleanReplyText = cleanResponse(rawReply);
 
       return res.json({
-        reply: parsed.reply,
-        keyTakeaways: parsed.keyTakeaways,
-        suggestedFollowUps: parsed.suggestedFollowUps
+        reply: cleanReplyText
       });
     } catch (err: unknown) {
       console.error('Error during AI analysis:', err);
